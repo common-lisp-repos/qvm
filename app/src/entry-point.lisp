@@ -170,7 +170,12 @@
      :type boolean
      :optional t
      :initial-value nil
-     :documentation "Disable printing of the wavefunction in batch mode.")))
+     :documentation "Disable printing of the wavefunction in batch mode.")
+
+    (("debugger" #\D)
+     :type boolean
+     :optional t
+     :documentation "Debug mode, specifically this causes the QVM to not automatically catch execution errors allowing interactive debugging via SWANK.")))
 
 (defun show-help ()
   (format t "Usage:~%")
@@ -348,7 +353,8 @@ Copyright (c) 2016-2019 Rigetti Computing.~2%")
                           proxy
                           quiet
                           log-level
-                          hide-wavefunction)
+                          hide-wavefunction
+                          debugger)
 
   (setf *logger* (make-instance 'cl-syslog:rfc5424-logger
                                 :app-name "qvm"
@@ -498,7 +504,7 @@ Copyright (c) 2016-2019 Rigetti Computing.~2%")
     (server
      (when check-sdk-version
        (asynchronously-indicate-update-availability +QVM-VERSION+ :proxy proxy))
-     
+
      (when execute
        (format-log "Warning: Ignoring execute option: ~S" execute)
        (setf execute nil))
@@ -521,6 +527,9 @@ Copyright (c) 2016-2019 Rigetti Computing.~2%")
        (format-log "Created persistent memory for ~D qubits" qubits))
      ;; Start the server
      (start-server-app host port))
+
+    ;; Debugger mode.
+    (debugger (debugger))
 
     ;; Batch mode.
     (t
