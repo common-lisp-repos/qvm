@@ -217,7 +217,7 @@ Set up a breakpoint at the specified instruction."
                    (< (length (qvm::program *qvm*))))
         (error "Invalid instruction index ~S." idx))
       (pushnew idx *breakpoints*)
-      (setf *breakpoints* (stable-sort *breakpoints* #'<)))))
+      (setf *breakpoints* (sort *breakpoints* #'<)))))
 
 (define-debugger-command display ()
   "Usage: display
