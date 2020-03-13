@@ -211,7 +211,7 @@ Re-read the file corresponding to the previously loaded program."
 
 Set up a breakpoint at the specified instruction."
   (when *qvm*
-    (let ((idx (read-from-string instruction-index)))
+    (let ((idx (parse-integer instruction-index)))
       (unless (and (integerp idx)
                    (not (minusp idx))
                    (< idx (length (qvm::program *qvm*))))
