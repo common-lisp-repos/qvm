@@ -61,7 +61,7 @@
 
 (defun eval-command (command-name &optional args)
   (let ((function (command-function (get-command command-name))))
-    (if (string= args "")
+    (if (or (null args) (string= args ""))
         (funcall function)
         (funcall function args))))
 
