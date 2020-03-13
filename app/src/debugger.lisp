@@ -124,7 +124,7 @@ Run the current program from the beginning."
 (define-debugger-command display-registers ()
   "Usage: display-registers
 
-Show the contents of the wavefunction after each executed step."
+Show the contents of the wavefunction. You can enable running this command after every step by running the \"display\" command."
   (format t "Amplitudes:~%")
   (let ((nq (qvm:number-of-qubits *qvm*)))
     (qvm:map-amplitudes
