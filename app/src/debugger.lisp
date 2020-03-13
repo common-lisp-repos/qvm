@@ -214,7 +214,7 @@ Set up a breakpoint at the specified instruction."
     (let ((idx (read-from-string instruction-index)))
       (unless (and (integerp idx)
                    (not (minusp idx))
-                   (< (length (qvm::program *qvm*))))
+                   (< idx (length (qvm::program *qvm*))))
         (error "Invalid instruction index ~S." idx))
       (pushnew idx *breakpoints*)
       (setf *breakpoints* (sort *breakpoints* #'<)))))
