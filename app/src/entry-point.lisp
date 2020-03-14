@@ -529,7 +529,7 @@ Copyright (c) 2016-2019 Rigetti Computing.~2%")
      (start-server-app host port))
 
     ;; Debugger mode.
-    (debugger (debugger))
+    (debugger (qvm-app.debugger:debugger))
 
     ;; Batch mode.
     (t

@@ -2,7 +2,11 @@
 ;;;;
 ;;;; Author: Juan M. Bello-Rivas
 
-(in-package #:qvm-app)
+(defpackage #:qvm-app.debugger
+  (:use #:common-lisp #:qvm-app)
+  (:export #:debugger))
+
+(in-package #:qvm-app.debugger)
 
 (defparameter *threshold* (* 1e3 double-float-epsilon))
 
@@ -14,21 +18,21 @@
 
 (defparameter *breakpoints* nil "List of breakpoints.")
 
-(defparameter *debugger-prompt* "(qvm-debugger) ")
+(defparameter *prompt* "(qvm-debugger) ")
 
 (defun error-unless-qvm-exists ()
   (unless *qvm*
     (error "No program has been loaded.")))
 
 (defstruct command
-  (name nil :type string)
-  (function nil :type function)
-  (documentation nil :type string))
+  (name nil :type string :read-only t)
+  (function nil :type function :read-only t)
+  (documentation nil :type string :read-only t))
 
 (defparameter *commands* nil
   "Association list of available commands.")
 
-(defmacro define-debugger-command (name lambda-list &body body)
+(defmacro define-command (name lambda-list &body body)
   "Define a new command function named %NAME (note that the % character is prepended to NAME) with the specified LAMBDA-LIST and BODY.
 
 Documentation strings are mandatory in debugger commands and they should be formatted as follows:
@@ -79,7 +83,7 @@ Documentation strings are mandatory in debugger commands and they should be form
       (error "Invalid documentation string for ~S." (command-name command)))
     (aref substrings 0)))
 
-(define-debugger-command help (&optional command-name)
+(define-command help (&optional command-name)
   "Usage: help [COMMAND]
 
 Display help message."
@@ -88,7 +92,7 @@ Display help message."
       (loop :for (command-name . command) :in *commands* :do
         (format t "~&~A~40T~A~%" command-name (command-description command)))))
 
-(define-debugger-command reset ()
+(define-command reset ()
   "Usage: reset
 
 Reset the current QVM to the zero ket and set the program counter to zero."
@@ -97,21 +101,21 @@ Reset the current QVM to the zero ket and set the program counter to zero."
   (qvm::reset-classical-memory *qvm*)
   (setf (qvm::pc *qvm*) 0))
 
-(define-debugger-command list ()
+(define-command list ()
   "Usage: list
 
 Disassemble (list) the currently loaded program."
   (error-unless-qvm-exists)
   (flet ((get-marker-index (instruction-index)
            (if *qvm*
-               (boolean-bit (= instruction-index (qvm::pc *qvm*)))
+               (qvm:boolean-bit (= instruction-index (qvm::pc *qvm*)))
                0)))
     (loop :for instruction-index :from 0
           :for instruction :across (qvm::program *qvm*) :do
             (format t "~&~[ ~;*~]~D~10T~/cl-quil:instruction-fmt/~%"
                     (get-marker-index instruction-index) instruction-index instruction))))
 
-(define-debugger-command run ()
+(define-command run ()
   "Usage: run
 
 Run the current program from the beginning."
@@ -128,7 +132,7 @@ Run the current program from the beginning."
                               pc (qvm::current-instruction *qvm*)))
                     (return *qvm*))
      (when *display*
-       (display-amplitudes)))
+       (show-amplitudes)))
     (t
      (error "No program has been loaded."))))
 
@@ -137,7 +141,7 @@ Run the current program from the beginning."
       (>= (qvm::pc *qvm*)
           (qvm::loaded-program-length *qvm*))))
 
-(define-debugger-command step ()
+(define-command step ()
   "Usage: step
 
 Run the next instruction and stop."
@@ -146,13 +150,12 @@ Run the next instruction and stop."
     ((program-finished-p)
      (format t "Finished program execution.~%"))
     (t
-     (quil::print-instruction (qvm::current-instruction *qvm*))
-     (terpri)
+     (format t "~/quil:instruction-fmt/~%" (qvm::current-instruction *qvm*))
      (setf *qvm* (qvm:transition *qvm* (qvm::current-instruction *qvm*)))
      (when *display*
-       (display-amplitudes)))))
+       (print-amplitudes)))))
 
-(define-debugger-command continue ()
+(define-command continue ()
   "Usage: continue
 
 Resume program execution from the current instruction."
@@ -172,7 +175,7 @@ Resume program execution from the current instruction."
                               pc (qvm::current-instruction *qvm*)))
                     (return *qvm*)))))
 
-(define-debugger-command load (filename)
+(define-command load (filename)
   "Usage: load FILENAME
 
 Load a program instantiating a suitable QVM."
@@ -189,7 +192,7 @@ Load a program instantiating a suitable QVM."
     (qvm:load-program *qvm* program))
   (setf *breakpoints* nil))
 
-(define-debugger-command reload ()
+(define-command reload ()
   "Usage: reload
 
 Re-read the file corresponding to the previously loaded program."
@@ -198,7 +201,7 @@ Re-read the file corresponding to the previously loaded program."
   (format t "Reloading ~S.~%" *source-filename*)
   (%load *source-filename*))
 
-(define-debugger-command break (instruction-index)
+(define-command break (instruction-index)
   "Usage: break INSTRUCTION-INDEX
 
 Set up a breakpoint at the specified instruction."
@@ -211,8 +214,7 @@ Set up a breakpoint at the specified instruction."
     (pushnew idx *breakpoints*)
     (setf *breakpoints* (sort *breakpoints* #'<))))
 
-(defun display-amplitudes ()
-  (format t "Amplitudes:~%")
+(defun print-amplitudes ()
   (let ((nq (qvm:number-of-qubits *qvm*)))
     (qvm:map-amplitudes
      *qvm*
@@ -225,16 +227,16 @@ Set up a breakpoint at the specified instruction."
                      nq i z p)))
          (incf i))))))
 
-(define-debugger-command display ()
+(define-command display ()
   "Usage: display
 
-Show the contents of the wavefunction. You can enable running this command after every step by running the \"display\" command."
+Show the contents of the wavefunction when stepping through a program."
   (error-unless-qvm-exists)
   (unless *display*
     (format t "Enabling register display.~%")
     (setf *display* t)))
 
-(define-debugger-command delete ()
+(define-command delete ()
   "Usage: delete
 
 Delete breakpoints and disable register display."
@@ -250,29 +252,29 @@ Delete breakpoints and disable register display."
       (list (string-downcase (subseq string (aref reg-start 0) (aref reg-end 0)))
             (subseq string (aref reg-start 1) (aref reg-end 1))))))
 
-(define-debugger-command info (args)
+(defmacro string-prefix-case (string &body cases)
+  `(cond
+     ,@(loop :for (str forms) :in cases
+             :collect `((uiop:string-prefix-p ,string ,str) ,forms))))
+
+(define-command info (args)
   "Usage: info COMMAND where COMMAND is 'qvm', 'registers', or 'classical'.
 
 Show internal state information."
-  (let ((subcommand (first (parse-string args))))
-    (cond
-      ((uiop:string-prefix-p subcommand "qvm")
-       (if *qvm*
-           (format t "QVM is ~A with ~D qubits.~%" *qvm* (qvm:number-of-qubits *qvm*))
-           (format t "No QVM has been instantiated.~%")))
-      ((uiop:string-prefix-p subcommand "registers")
-       (when *qvm*
-         (format t "Program counter: ~D~%" (qvm::pc *qvm*))
-         (display-amplitudes)))
-      ((uiop:string-prefix-p subcommand "classical")
-       (when *qvm*
-         (qvm-app::print-classical-memory *qvm*)))
-      ((uiop:string-prefix-p subcommand "breakpoints")
-       (format t "~@(~R~) breakpoint~:P currently set.~%" (length *breakpoints*))
-       (loop :for breakpoint :in *breakpoints* :do
-         (format t "~&~D~10T~/cl-quil:instruction-fmt/~%" breakpoint (elt (qvm::program *qvm*) breakpoint))))
-      (t
-       (error "Invalid info command.")))))
+  (error-unless-qvm-exists)
+  (string-prefix-case (first (parse-string args))
+    ("qvm"
+     (format t "QVM is ~A with ~D qubits.~%" *qvm* (qvm:number-of-qubits *qvm*)))
+    ("registers"
+     (format t "Program counter: ~D~%Non-zero amplitudes:~%" (qvm::pc *qvm*))
+     (print-amplitudes))
+    ("classical"
+     (qvm-app::print-classical-memory *qvm*))
+    ("breakpoints"
+     (format t "~@(~R~) breakpoint~:P currently set.~%" (length *breakpoints*))
+     (loop :for breakpoint :in *breakpoints* :do
+       (format t "~&~D~10T~/cl-quil:instruction-fmt/~%" breakpoint (elt (qvm::program *qvm*) breakpoint))))
+    (t (error "Invalid info command."))))
 
 (defun formedit (&key prompt1 prompt2)
   (declare (ignorable prompt2))
@@ -287,7 +289,7 @@ Show internal state information."
 (defun debugger ()
   (loop :with previous-command := nil
         :with previous-args := nil
-        :for string := (formedit :prompt1 *debugger-prompt*)
+        :for string := (formedit :prompt1 *prompt*)
         :for (command args) := (parse-string string)
         :until (uiop:string-prefix-p command "quit")
         :if command :do
