@@ -4,7 +4,8 @@
 
 (defpackage #:qvm-app.debugger
   (:use #:common-lisp #:qvm-app)
-  (:export #:debugger))
+  (:export #:debugger)
+  (:import-from #:alexandria #:assoc-value))
 
 (in-package #:qvm-app.debugger)
 
@@ -56,18 +57,12 @@ Documentation strings are mandatory in debugger commands and they should be form
                                              :documentation ,documentation)
                                *commands*)))))
 
-(defun %get-command (command-name)
-  (alexandria:assoc-value *commands* command-name :test #'uiop:string-prefix-p))
-
 (defun get-command (command-name)
   "Return COMMAND structure corresponding to COMMAND-NAME. Signal an error if no such command exists."
-  (let ((command (%get-command command-name)))
+  (let ((command (assoc-value *commands* command-name :test #'uiop:string-prefix-p)))
     (unless command
       (error "No such command ~S exists." command-name))
     command))
-
-(defun command-exists-p (command-name)
-  (not (null (%get-command command-name))))
 
 (defun eval-command (command-name &optional args)
   (let ((function (command-function (get-command command-name))))
